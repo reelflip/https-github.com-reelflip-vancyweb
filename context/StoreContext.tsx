@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User, UserRole, Product, CartItem, Order, Address, OrderStatus, StoreSettings } from '../types';
+import { User, UserRole, Product, CartItem, Order, Address, OrderStatus, StoreSettings, Coupon, Review } from '../types';
 import { INITIAL_CATEGORIES, PRODUCTS as INITIAL_PRODUCTS } from '../constants';
 
 interface StoreContextType {
@@ -17,8 +17,8 @@ interface StoreContextType {
   register: (name: string, email: string, pass: string) => boolean;
   logout: () => void;
   orders: Order[];
-  allOrders: Order[]; // For Admin
-  placeOrder: () => void;
+  allOrders: Order[];
+  placeOrder: (shippingAddress: Address, discount?: number, couponCode?: string) => void;
   updateOrderStatus: (orderId: string, status: OrderStatus) => void;
   requestRefund: (orderId: string) => void;
   addAddress: (address: Omit<Address, 'id'>) => void;
@@ -32,12 +32,16 @@ interface StoreContextType {
   addProduct: (product: Omit<Product, 'id'>) => void;
   deleteProduct: (id: string) => void;
   updateProduct: (id: string, updates: Partial<Product>) => void;
+  addReview: (productId: string, review: Omit<Review, 'id' | 'date'>) => void;
+  coupons: Coupon[];
+  addCoupon: (coupon: Omit<Coupon, 'id'>) => void;
+  deleteCoupon: (id: string) => void;
   storeSettings: StoreSettings;
   updateStoreSettings: (updates: Partial<StoreSettings>) => void;
 }
 
 const DEFAULT_SETTINGS: StoreSettings = {
-  enabledPaymentGateways: ['cod'],
+  enabledPaymentGateways: ['cod', 'razorpay'],
   deliveryPartners: ['BlueDart', 'Delhivery'],
   freeShippingThreshold: 2000,
   flatShippingRate: 150,
@@ -65,6 +69,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [allOrders, setAllOrders] = useState<Order[]>(() => getStored('allOrders', []));
   const [categories, setCategories] = useState<string[]>(() => getStored('categories', INITIAL_CATEGORIES));
   const [products, setProducts] = useState<Product[]>(() => getStored('products', INITIAL_PRODUCTS));
+  const [coupons, setCoupons] = useState<Coupon[]>(() => getStored('coupons', [
+    { id: 'c1', code: 'VANCY15', discountType: 'percentage', value: 15, minSpend: 1000, expiryDate: '2025-12-31', isActive: true }
+  ]));
   const [storeSettings, setStoreSettings] = useState<StoreSettings>(() => getStored('settings', DEFAULT_SETTINGS));
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -76,12 +83,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => localStorage.setItem('vancy_allOrders', JSON.stringify(allOrders)), [allOrders]);
   useEffect(() => localStorage.setItem('vancy_categories', JSON.stringify(categories)), [categories]);
   useEffect(() => localStorage.setItem('vancy_products', JSON.stringify(products)), [products]);
+  useEffect(() => localStorage.setItem('vancy_coupons', JSON.stringify(coupons)), [coupons]);
   useEffect(() => localStorage.setItem('vancy_settings', JSON.stringify(storeSettings)), [storeSettings]);
 
   const login = (email: string, pass: string) => {
     const isAdmin = email.includes('admin');
     const newUser: User = {
-      id: isAdmin ? 'admin-1' : 'u1',
+      id: isAdmin ? 'admin-1' : `u-${Date.now()}`,
       name: email.split('@')[0],
       email: email,
       role: isAdmin ? UserRole.ADMIN : UserRole.BUYER,
@@ -95,7 +103,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const register = (name: string, email: string, pass: string) => {
-    setUser({ id: Math.random().toString(), name, email, role: UserRole.BUYER, addresses: [] });
+    setUser({ id: `u-${Date.now()}`, name, email, role: UserRole.BUYER, addresses: [] });
     return true;
   };
 
@@ -119,7 +127,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const removeFromCart = (index: number) => setCart(prev => prev.filter((_, i) => i !== index));
-
   const updateQuantity = (index: number, delta: number) => {
     setCart(prev => {
       const next = [...prev];
@@ -132,15 +139,22 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const toggleWishlist = (id: string) => setWishlist(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
-  const placeOrder = () => {
+  const placeOrder = (shippingAddress: Address, discount = 0, couponCode?: string) => {
     if (cart.length === 0) return;
+    const subtotal = cart.reduce((acc, item) => acc + (item.product.price * item.quantity), 0);
+    const shipping = subtotal >= storeSettings.freeShippingThreshold ? 0 : storeSettings.flatShippingRate;
     const newOrder: Order = {
       id: `ORD-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
       date: new Date().toLocaleDateString(),
       status: 'Pending',
-      total: cart.reduce((acc, item) => acc + (item.product.price * item.quantity), 0),
+      subtotal,
+      discount,
+      couponCode,
+      total: subtotal + shipping - discount,
       items: [...cart],
-      customerEmail: user?.email
+      customerEmail: user?.email,
+      customerName: user?.name,
+      shippingAddress: shippingAddress
     };
     setOrders(prev => [newOrder, ...prev]);
     setAllOrders(prev => [newOrder, ...prev]);
@@ -157,7 +171,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const addAddress = (addr: Omit<Address, 'id'>) => {
     if (!user) return;
-    const newAddr = { ...addr, id: Math.random().toString() };
+    const newAddr = { ...addr, id: `addr-${Date.now()}` };
     setUser({ ...user, addresses: [...user.addresses, newAddr] });
   };
 
@@ -173,6 +187,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const deleteProduct = (id: string) => setProducts(prev => prev.filter(p => p.id !== id));
   const updateProduct = (id: string, updates: Partial<Product>) => setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
 
+  const addReview = (productId: string, review: Omit<Review, 'id' | 'date'>) => {
+    const newReview = { ...review, id: `rev-${Date.now()}`, date: new Date().toLocaleDateString() };
+    setProducts(prev => prev.map(p => {
+      if (p.id === productId) {
+        const updatedReviews = [...(p.reviews || []), newReview];
+        const newRating = updatedReviews.reduce((acc, r) => acc + r.rating, 0) / updatedReviews.length;
+        return { ...p, reviews: updatedReviews, rating: parseFloat(newRating.toFixed(1)), reviewCount: updatedReviews.length };
+      }
+      return p;
+    }));
+  };
+
+  const addCoupon = (c: Omit<Coupon, 'id'>) => setCoupons(prev => [...prev, { ...c, id: `cp-${Date.now()}` }]);
+  const deleteCoupon = (id: string) => setCoupons(prev => prev.filter(c => c.id !== id));
+
   const updateStoreSettings = (updates: Partial<StoreSettings>) => setStoreSettings(prev => ({ ...prev, ...updates }));
 
   return (
@@ -180,7 +209,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       user, role, setRole, cart, addToCart, removeFromCart, updateQuantity, wishlist, toggleWishlist, 
       login, register, logout, orders, allOrders, placeOrder, updateOrderStatus, requestRefund,
       addAddress, removeAddress, searchQuery, setSearchQuery, categories, addCategory, deleteCategory,
-      products, addProduct, deleteProduct, updateProduct, storeSettings, updateStoreSettings
+      products, addProduct, deleteProduct, updateProduct, addReview, coupons, addCoupon, deleteCoupon,
+      storeSettings, updateStoreSettings
     }}>
       {children}
     </StoreContext.Provider>

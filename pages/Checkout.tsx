@@ -2,17 +2,54 @@
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
 import { useNavigate } from 'react-router-dom';
+import { Address } from '../types';
 
 const Checkout: React.FC = () => {
-  const { cart, placeOrder, storeSettings } = useStore();
+  const { cart, placeOrder, storeSettings, user, coupons } = useStore();
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState('');
+  
+  // Coupon state
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<{code: string, discount: number} | null>(null);
+  const [couponError, setCouponError] = useState('');
+
+  const [shippingData, setShippingData] = useState<Omit<Address, 'id' | 'isDefault'>>({
+    name: user?.name || '',
+    street: user?.addresses?.[0]?.street || '',
+    city: user?.addresses?.[0]?.city || '',
+    zip: user?.addresses?.[0]?.zip || '',
+  });
 
   const subtotal = cart.reduce((acc, item) => acc + (item.product.price * item.quantity), 0);
   const shipping = subtotal >= storeSettings.freeShippingThreshold ? 0 : storeSettings.flatShippingRate;
-  const total = subtotal + shipping;
+  const totalDiscount = appliedCoupon ? appliedCoupon.discount : 0;
+  const total = subtotal + shipping - totalDiscount;
+
+  const handleApplyCoupon = () => {
+    setCouponError('');
+    const coupon = coupons.find(c => c.code.toUpperCase() === couponCode.toUpperCase() && c.isActive);
+    if (!coupon) {
+      setCouponError('Invalid coupon code.');
+      return;
+    }
+    if (subtotal < coupon.minSpend) {
+      setCouponError(`Minimum spend of ₹${coupon.minSpend} required.`);
+      return;
+    }
+    
+    let discount = 0;
+    if (coupon.discountType === 'percentage') {
+      discount = (subtotal * coupon.value) / 100;
+    } else {
+      discount = coupon.value;
+    }
+    
+    setAppliedCoupon({ code: coupon.code, discount });
+    setCouponCode('');
+  };
 
   const handlePlaceOrder = () => {
     if (!selectedMethod) {
@@ -20,11 +57,17 @@ const Checkout: React.FC = () => {
       return;
     }
     setIsProcessing(true);
-    // Simulate payment gateway processing
+    
+    const orderAddress: Address = {
+      ...shippingData,
+      id: `checkout-${Date.now()}`,
+      isDefault: false
+    };
+
     setTimeout(() => {
-        placeOrder();
+        placeOrder(orderAddress, totalDiscount, appliedCoupon?.code);
         setIsProcessing(false);
-        setStep(3); // Success step
+        setStep(3);
     }, 2000);
   };
 
@@ -34,7 +77,7 @@ const Checkout: React.FC = () => {
     { id: 'stripe', name: 'Stripe International', icon: '🌍', type: 'online' },
     { id: 'cod', name: 'Cash on Delivery', icon: '🚚', type: 'offline' }
   ].filter(m => {
-    if (m.id === 'card' && storeSettings.enabledPaymentGateways.includes('razorpay')) return false; // Hide generic card if razorpay exists
+    if (m.id === 'card' && storeSettings.enabledPaymentGateways.includes('razorpay')) return false;
     return storeSettings.enabledPaymentGateways.includes(m.id);
   });
 
@@ -87,24 +130,53 @@ const Checkout: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-1 sm:col-span-2">
                     <label className="text-[10px] uppercase font-bold text-stone-400 tracking-widest ml-1">Full Name</label>
-                    <input type="text" placeholder="John Doe" className="w-full p-4 bg-stone-50 border border-stone-100 rounded-xl outline-none focus:ring-1 focus:ring-stone-900 transition" />
+                    <input 
+                      required 
+                      type="text" 
+                      placeholder="John Doe" 
+                      className="w-full p-4 bg-stone-50 border border-stone-100 rounded-xl outline-none focus:ring-1 focus:ring-stone-900 transition" 
+                      value={shippingData.name}
+                      onChange={e => setShippingData({...shippingData, name: e.target.value})}
+                    />
                 </div>
                 <div className="space-y-1 sm:col-span-2">
                     <label className="text-[10px] uppercase font-bold text-stone-400 tracking-widest ml-1">Street Address</label>
-                    <input type="text" placeholder="House no, Building, Street" className="w-full p-4 bg-stone-50 border border-stone-100 rounded-xl outline-none focus:ring-1 focus:ring-stone-900 transition" />
+                    <input 
+                      required 
+                      type="text" 
+                      placeholder="House no, Building, Street" 
+                      className="w-full p-4 bg-stone-50 border border-stone-100 rounded-xl outline-none focus:ring-1 focus:ring-stone-900 transition" 
+                      value={shippingData.street}
+                      onChange={e => setShippingData({...shippingData, street: e.target.value})}
+                    />
                 </div>
                 <div className="space-y-1">
                     <label className="text-[10px] uppercase font-bold text-stone-400 tracking-widest ml-1">City</label>
-                    <input type="text" placeholder="Mumbai" className="w-full p-4 bg-stone-50 border border-stone-100 rounded-xl outline-none focus:ring-1 focus:ring-stone-900 transition" />
+                    <input 
+                      required 
+                      type="text" 
+                      placeholder="Mumbai" 
+                      className="w-full p-4 bg-stone-50 border border-stone-100 rounded-xl outline-none focus:ring-1 focus:ring-stone-900 transition" 
+                      value={shippingData.city}
+                      onChange={e => setShippingData({...shippingData, city: e.target.value})}
+                    />
                 </div>
                 <div className="space-y-1">
                     <label className="text-[10px] uppercase font-bold text-stone-400 tracking-widest ml-1">Pincode</label>
-                    <input type="text" placeholder="400001" className="w-full p-4 bg-stone-50 border border-stone-100 rounded-xl outline-none focus:ring-1 focus:ring-stone-900 transition" />
+                    <input 
+                      required 
+                      type="text" 
+                      placeholder="400001" 
+                      className="w-full p-4 bg-stone-50 border border-stone-100 rounded-xl outline-none focus:ring-1 focus:ring-stone-900 transition" 
+                      value={shippingData.zip}
+                      onChange={e => setShippingData({...shippingData, zip: e.target.value})}
+                    />
                 </div>
               </div>
               <button 
                 onClick={() => setStep(2)}
-                className="w-full bg-stone-900 text-white py-5 rounded-xl font-bold uppercase tracking-widest hover:bg-stone-800 transition shadow-xl"
+                disabled={!shippingData.name || !shippingData.street || !shippingData.city || !shippingData.zip}
+                className="w-full bg-stone-900 text-white py-5 rounded-xl font-bold uppercase tracking-widest hover:bg-stone-800 transition shadow-xl disabled:opacity-50"
               >
                 Proceed to Payment
               </button>
@@ -132,7 +204,7 @@ const Checkout: React.FC = () => {
                 ) : (
                   <div className="p-8 bg-amber-50 rounded-2xl border border-amber-100 text-center">
                     <p className="text-sm font-bold text-amber-900">Checkout is currently unavailable.</p>
-                    <p className="text-xs text-amber-700 mt-2">No payment methods are configured by the administrator.</p>
+                    <p className="text-xs text-amber-700 mt-2">No payment methods are configured.</p>
                   </div>
                 )}
               </div>
@@ -158,7 +230,8 @@ const Checkout: React.FC = () => {
         {/* Order Preview */}
         <div className="bg-stone-100 p-8 sm:p-12 rounded-[40px] h-fit sticky top-28 border border-stone-200">
            <h3 className="text-xl font-bold mb-8 brand-font">Order Summary</h3>
-           <div className="space-y-6 mb-8 max-h-[400px] overflow-y-auto pr-4 custom-scrollbar">
+           
+           <div className="space-y-6 mb-8 max-h-[300px] overflow-y-auto pr-4 custom-scrollbar">
              {cart.map((item, i) => (
                <div key={i} className="flex gap-6">
                  <div className="relative">
@@ -167,12 +240,42 @@ const Checkout: React.FC = () => {
                  </div>
                  <div className="flex-1 flex flex-col justify-center">
                    <h4 className="text-sm font-bold text-stone-900 uppercase tracking-tighter">{item.product.name}</h4>
-                   <p className="text-[10px] text-stone-400 uppercase tracking-widest mt-1">Size: {item.selectedSize} | {item.selectedColor}</p>
+                   <p className="text-[10px] text-stone-400 uppercase tracking-widest mt-1">Size: {item.selectedSize}</p>
                    <p className="text-sm font-bold mt-2">₹{(item.product.price * item.quantity).toLocaleString()}</p>
                  </div>
                </div>
              ))}
            </div>
+
+           {/* Coupon Section */}
+           {step < 3 && (
+             <div className="mb-8 p-6 bg-white rounded-2xl border border-stone-200">
+                <label className="text-[9px] font-black uppercase tracking-widest text-stone-400 block mb-3">Promotional Code</label>
+                <div className="flex gap-2">
+                   <input 
+                      type="text" 
+                      placeholder="VANCY15" 
+                      className="flex-1 text-xs p-3 bg-stone-50 border border-stone-100 rounded-xl outline-none focus:border-stone-900 uppercase"
+                      value={couponCode}
+                      onChange={e => setCouponCode(e.target.value)}
+                   />
+                   <button 
+                      onClick={handleApplyCoupon}
+                      className="bg-stone-900 text-white px-6 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-stone-800 transition"
+                   >
+                      Apply
+                   </button>
+                </div>
+                {couponError && <p className="text-[9px] text-red-500 font-bold mt-2 uppercase tracking-widest">{couponError}</p>}
+                {appliedCoupon && (
+                  <div className="flex justify-between items-center mt-4 bg-green-50 px-4 py-2 rounded-lg border border-green-100">
+                    <span className="text-[9px] font-black text-green-700 uppercase tracking-widest">Applied: {appliedCoupon.code}</span>
+                    <button onClick={() => setAppliedCoupon(null)} className="text-green-700 font-bold text-xs">×</button>
+                  </div>
+                )}
+             </div>
+           )}
+
            <div className="space-y-4 pt-8 border-t border-stone-200">
              <div className="flex justify-between text-xs font-bold uppercase tracking-widest text-stone-400">
                <span>Bag Subtotal</span>
@@ -182,6 +285,12 @@ const Checkout: React.FC = () => {
                <span>Shipping</span>
                <span className={shipping === 0 ? 'text-green-600' : 'text-stone-900'}>{shipping === 0 ? 'FREE' : `₹${shipping.toLocaleString()}`}</span>
              </div>
+             {appliedCoupon && (
+               <div className="flex justify-between text-xs font-bold uppercase tracking-widest text-green-600">
+                 <span>Discount</span>
+                 <span>- ₹{appliedCoupon.discount.toLocaleString()}</span>
+               </div>
+             )}
              <div className="flex justify-between font-bold text-2xl pt-4 text-stone-900">
                <span className="brand-font">Total Payable</span>
                <span>₹{total.toLocaleString()}</span>

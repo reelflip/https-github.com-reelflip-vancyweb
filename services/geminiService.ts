@@ -1,7 +1,7 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+// DO strictly use process.env.API_KEY directly within the initialization object.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const getFashionAdvice = async (userPrompt: string, history: any[] = []) => {
   try {

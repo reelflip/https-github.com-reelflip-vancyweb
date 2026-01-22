@@ -23,6 +23,25 @@ export interface User {
   addresses: Address[];
 }
 
+export interface Review {
+  id: string;
+  productId: string;
+  userName: string;
+  rating: number;
+  comment: string;
+  date: string;
+}
+
+export interface Coupon {
+  id: string;
+  code: string;
+  discountType: 'percentage' | 'fixed';
+  value: number;
+  minSpend: number;
+  expiryDate: string;
+  isActive: boolean;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -38,6 +57,7 @@ export interface Product {
   isNew?: boolean;
   stock: number;
   fabric: string;
+  reviews?: Review[];
 }
 
 export interface CartItem {
@@ -66,6 +86,9 @@ export interface Order {
   date: string;
   status: OrderStatus;
   total: number;
+  subtotal: number;
+  discount: number;
+  couponCode?: string;
   items: CartItem[];
   customerEmail?: string;
   customerName?: string;

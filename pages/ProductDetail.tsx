@@ -6,7 +6,7 @@ import ProductCard from '../components/ProductCard';
 
 const ProductDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const { products, addToCart, toggleWishlist, wishlist } = useStore();
+  const { products, addToCart, toggleWishlist, wishlist, user, addReview } = useStore();
   const navigate = useNavigate();
   
   const product = products.find(p => p.id === id);
@@ -15,6 +15,10 @@ const ProductDetail: React.FC = () => {
   const [selectedSize, setSelectedSize] = useState('');
   const [selectedColor, setSelectedColor] = useState('');
   const [added, setAdded] = useState(false);
+  
+  // Review form
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
 
   useEffect(() => {
     if (product) {
@@ -41,6 +45,21 @@ const ProductDetail: React.FC = () => {
     addToCart(product, selectedSize, selectedColor);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
+  };
+
+  const handleReviewSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+    addReview(product.id, {
+      productId: product.id,
+      userName: user.name,
+      rating: reviewRating,
+      comment: reviewComment
+    });
+    setReviewComment('');
   };
 
   const related = products.filter(p => p.category === product.category && p.id !== product.id).slice(0, 4);
@@ -84,8 +103,9 @@ const ProductDetail: React.FC = () => {
             
             <div className="mt-4 flex items-center gap-4">
               <span className="text-3xl font-bold text-stone-900">₹{product.price.toLocaleString()}</span>
-              <span className="text-stone-400 line-through text-lg">₹{product.originalPrice.toLocaleString()}</span>
-              <span className="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-1 rounded">Save {Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}%</span>
+              {product.originalPrice > product.price && (
+                <span className="text-stone-400 line-through text-lg">₹{product.originalPrice.toLocaleString()}</span>
+              )}
             </div>
             
             <div className="flex items-center gap-1 mt-4 text-amber-500">
@@ -157,6 +177,71 @@ const ProductDetail: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Reviews Section */}
+      <section className="mt-24 py-12 border-t border-stone-100">
+         <div className="max-w-4xl">
+            <h2 className="text-3xl brand-font mb-10">Authentic Reviews</h2>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 mb-20">
+               <div className="space-y-6">
+                  {product.reviews && product.reviews.length > 0 ? (
+                    product.reviews.map(rev => (
+                      <div key={rev.id} className="p-8 bg-white border border-stone-100 rounded-3xl shadow-sm">
+                         <div className="flex justify-between items-start mb-4">
+                            <div>
+                               <p className="font-bold text-stone-900">{rev.userName}</p>
+                               <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">{rev.date}</p>
+                            </div>
+                            <div className="flex text-amber-500">
+                               {[...Array(5)].map((_, i) => (
+                                 <svg key={i} xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill={i < rev.rating ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                               ))}
+                            </div>
+                         </div>
+                         <p className="text-sm text-stone-600 font-light leading-relaxed">"{rev.comment}"</p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-stone-400 italic">No reviews yet. Be the first to share your experience.</p>
+                  )}
+               </div>
+
+               <div className="bg-stone-50 p-10 rounded-[40px] border border-stone-100 h-fit">
+                  <h3 className="text-xl font-bold brand-font mb-6">Write a Review</h3>
+                  <form onSubmit={handleReviewSubmit} className="space-y-6">
+                     <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-stone-400 ml-1">Your Rating</label>
+                        <div className="flex gap-2">
+                           {[1, 2, 3, 4, 5].map(star => (
+                             <button 
+                               key={star} 
+                               type="button" 
+                               onClick={() => setReviewRating(star)}
+                               className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${reviewRating >= star ? 'bg-amber-500 text-white shadow-lg' : 'bg-white text-stone-300 border border-stone-100'}`}
+                             >
+                               {star}
+                             </button>
+                           ))}
+                        </div>
+                     </div>
+                     <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-stone-400 ml-1">Feedback</label>
+                        <textarea 
+                           required
+                           rows={4}
+                           placeholder="How does it feel? How's the fit?"
+                           className="w-full p-6 bg-white border border-stone-100 rounded-2xl outline-none focus:ring-1 focus:ring-stone-900 text-sm"
+                           value={reviewComment}
+                           onChange={e => setReviewComment(e.target.value)}
+                        />
+                     </div>
+                     <button className="w-full bg-stone-900 text-white py-5 rounded-2xl text-[10px] font-bold uppercase tracking-widest shadow-xl hover:bg-stone-800 transition">Publish Review</button>
+                  </form>
+               </div>
+            </div>
+         </div>
+      </section>
 
       {/* Related */}
       <section className="mt-24">

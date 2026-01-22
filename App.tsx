@@ -19,7 +19,7 @@ const AppContent: React.FC = () => {
   const { role, user } = useStore();
 
   return (
-    <div className="min-h-screen flex flex-col selection:bg-stone-900 selection:text-white">
+    <div className="min-h-screen flex flex-col bg-stone-50 text-stone-900 selection:bg-stone-900 selection:text-white font-sans">
       <Navbar />
       <main className="flex-grow">
         <Routes>
