@@ -1,0 +1,8 @@
+{
+  "name": "Vancy - Premium Fashion E-Commerce",
+  "description": "A full-fledged premium fashion e-commerce platform featuring buyer, seller, and admin roles, integrated with Gemini AI for personalized recommendations and a fashion assistant.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
