@@ -3,6 +3,7 @@ import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { StoreProvider, useStore } from './context/StoreContext';
 import Navbar from './components/Navbar';
+import BottomNav from './components/BottomNav';
 import Footer from './components/Footer';
 import ChatBot from './components/ChatBot';
 import Home from './pages/Home';
@@ -19,7 +20,7 @@ const AppContent: React.FC = () => {
   const { role, user } = useStore();
 
   return (
-    <div className="min-h-screen flex flex-col bg-stone-50 text-stone-900 selection:bg-stone-900 selection:text-white font-sans">
+    <div className="min-h-screen flex flex-col bg-stone-50 text-stone-900 selection:bg-stone-900 selection:text-white font-sans overflow-x-hidden">
       <Navbar />
       <main className="flex-grow">
         <Routes>
@@ -30,17 +31,15 @@ const AppContent: React.FC = () => {
           <Route path="/auth" element={user ? <Navigate to="/profile" /> : <Auth />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/profile" element={<Profile />} />
-
-          {/* Admin Protected Dashboard */}
           <Route 
             path="/admin" 
             element={role === UserRole.ADMIN ? <AdminDashboard /> : <Navigate to="/auth" />} 
           />
-
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>
       <ChatBot />
+      <BottomNav />
       <Footer />
     </div>
   );

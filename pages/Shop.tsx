@@ -10,129 +10,107 @@ const Shop: React.FC = () => {
   const initialCategory = searchParams.get('category') || 'All';
   
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
-  const [priceRange, setPriceRange] = useState(50000);
+  const [priceRange, setPriceRange] = useState(10000);
   const [sortBy, setSortBy] = useState('Featured');
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   const filteredProducts = useMemo(() => {
     let result = [...products];
-
-    // Category Filter
-    if (selectedCategory !== 'All' && selectedCategory !== 'New Arrivals') {
+    if (selectedCategory !== 'All') {
       result = result.filter(p => p.category === selectedCategory);
-    } else if (selectedCategory === 'New Arrivals') {
-      result = result.filter(p => p.isNew);
     }
-
-    // Search Query Filter
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(p => 
-        p.name.toLowerCase().includes(q) || 
-        p.category.toLowerCase().includes(q) ||
-        p.description.toLowerCase().includes(q) ||
-        p.fabric.toLowerCase().includes(q)
-      );
+      result = result.filter(p => p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q));
     }
-
-    // Price Filter
     result = result.filter(p => p.price <= priceRange);
-
-    // Sorting
     if (sortBy === 'Price: Low to High') result.sort((a, b) => a.price - b.price);
     if (sortBy === 'Price: High to Low') result.sort((a, b) => b.price - a.price);
-    if (sortBy === 'Rating') result.sort((a, b) => b.rating - a.rating);
-    if (sortBy === 'Newest') result.sort((a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0));
-
     return result;
   }, [selectedCategory, priceRange, sortBy, searchQuery, products]);
 
-  return (
-    <div className="max-w-7xl mx-auto px-4 py-12">
-      <div className="flex flex-col lg:flex-row gap-12">
-        <aside className="w-full lg:w-64 space-y-8 shrink-0">
-          <div>
-            <h3 className="text-xs uppercase font-bold tracking-widest mb-4">Collections</h3>
-            <div className="space-y-2">
-              <button 
-                onClick={() => setSelectedCategory('All')}
-                className={`block w-full text-left text-sm py-1 transition ${selectedCategory === 'All' ? 'text-stone-900 font-bold' : 'text-stone-500 hover:text-stone-900'}`}
-              >
-                All Collections
-              </button>
-              {categories.map(cat => (
-                <button 
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`block w-full text-left text-sm py-1 transition ${selectedCategory === cat ? 'text-stone-900 font-bold' : 'text-stone-500 hover:text-stone-900'}`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-          </div>
+  const FilterContent = () => (
+    <div className="space-y-8">
+      <div>
+        <h3 className="text-xs uppercase font-black tracking-[0.2em] text-stone-900 mb-6">Collections</h3>
+        <div className="flex flex-wrap gap-2 md:flex-col md:gap-2">
+          {['All', ...categories].map(cat => (
+            <button 
+              key={cat}
+              onClick={() => { setSelectedCategory(cat); setShowMobileFilters(false); }}
+              className={`px-4 py-2 md:px-0 md:py-1 text-xs md:text-sm rounded-full md:rounded-none border md:border-0 transition-all ${selectedCategory === cat ? 'bg-stone-900 text-white border-stone-900 font-bold' : 'text-stone-500 bg-white border-stone-200 hover:text-stone-900'}`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <h3 className="text-xs uppercase font-black tracking-[0.2em] text-stone-900 mb-6">Budget (₹{priceRange.toLocaleString()})</h3>
+        <input 
+          type="range" min="0" max="10000" step="500" value={priceRange} 
+          onChange={(e) => setPriceRange(parseInt(e.target.value))}
+          className="w-full h-1.5 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-stone-900"
+        />
+      </div>
+    </div>
+  );
 
-          <div>
-            <h3 className="text-xs uppercase font-bold tracking-widest mb-4">Max Budget (₹{priceRange.toLocaleString()})</h3>
-            <input 
-              type="range" 
-              min="0" 
-              max="10000" 
-              step="500"
-              value={priceRange > 10000 ? 10000 : priceRange} 
-              onChange={(e) => setPriceRange(parseInt(e.target.value))}
-              className="w-full h-1 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-stone-900"
-            />
-            <div className="flex justify-between text-[10px] text-stone-400 mt-2 font-bold uppercase tracking-widest">
-              <span>₹0</span>
-              <span>₹10,000+</span>
-            </div>
-          </div>
+  return (
+    <div className="max-w-7xl mx-auto px-4 py-8 md:py-12">
+      <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
+        {/* Desktop Sidebar */}
+        <aside className="hidden lg:block w-64 space-y-8 shrink-0 border-r border-stone-100 pr-8">
+          <FilterContent />
         </aside>
 
         <main className="flex-1">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-4">
-            <div>
-              <h1 className="text-2xl font-bold brand-font">
-                {searchQuery ? `Results for "${searchQuery}"` : selectedCategory} 
-                <span className="text-sm font-normal text-stone-400 font-sans ml-2">({filteredProducts.length} items)</span>
-              </h1>
-            </div>
-            <div className="flex items-center gap-4 w-full sm:w-auto">
-              <span className="text-xs text-stone-400 uppercase font-bold tracking-widest whitespace-nowrap">Sort:</span>
-              <select 
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="bg-stone-50 border border-stone-200 text-xs font-bold uppercase tracking-widest px-3 py-2 rounded-lg focus:outline-none focus:ring-1 focus:ring-stone-900 cursor-pointer w-full sm:w-48"
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-2xl md:text-4xl brand-font tracking-tighter">Catalog</h1>
+            <div className="flex gap-2">
+               <button 
+                onClick={() => setShowMobileFilters(true)}
+                className="lg:hidden flex items-center gap-2 bg-white border border-stone-200 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm"
+               >
+                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="2" y1="14" x2="6" y2="14"/><line x1="10" y1="8" x2="14" y2="8"/><line x1="18" y1="16" x2="22" y2="16"/></svg>
+                 Filters
+               </button>
+               <select 
+                value={sortBy} onChange={(e) => setSortBy(e.target.value)}
+                className="bg-white border border-stone-200 text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl outline-none shadow-sm cursor-pointer"
               >
                 <option>Featured</option>
-                <option>Newest</option>
-                <option>Rating</option>
                 <option>Price: Low to High</option>
                 <option>Price: High to Low</option>
               </select>
             </div>
           </div>
 
-          {filteredProducts.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-              {filteredProducts.map(p => (
-                <ProductCard key={p.id} product={p} />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-24 bg-stone-50 rounded-3xl border border-stone-100">
-              <h2 className="text-xl font-bold text-stone-800 brand-font">Empty Collection</h2>
-              <p className="text-stone-500 mt-2 max-w-xs mx-auto text-sm font-light">No items match your criteria in this collection.</p>
-              <button 
-                onClick={() => { setSelectedCategory('All'); setPriceRange(50000); }}
-                className="mt-8 bg-stone-900 text-white px-8 py-3 rounded-full font-bold text-xs uppercase tracking-widest shadow-xl hover:bg-stone-800 transition"
-              >
-                Reset All Filters
-              </button>
+          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-8">
+            {filteredProducts.map(p => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </div>
+
+          {filteredProducts.length === 0 && (
+            <div className="text-center py-32 bg-white rounded-[40px] border border-stone-100">
+               <p className="brand-font text-2xl text-stone-300">No matches found.</p>
             </div>
           )}
         </main>
       </div>
+
+      {/* Mobile Filter Drawer */}
+      {showMobileFilters && (
+        <div className="fixed inset-0 z-[100] lg:hidden">
+          <div className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm" onClick={() => setShowMobileFilters(false)}></div>
+          <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-[40px] p-10 animate-in slide-in-from-bottom duration-300 shadow-2xl">
+             <div className="w-12 h-1.5 bg-stone-100 rounded-full mx-auto mb-8"></div>
+             <FilterContent />
+             <button onClick={() => setShowMobileFilters(false)} className="w-full bg-stone-900 text-white py-5 rounded-2xl mt-12 font-black uppercase tracking-widest text-[11px] shadow-2xl">Apply Filters</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
